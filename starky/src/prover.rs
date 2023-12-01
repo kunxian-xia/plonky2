@@ -110,6 +110,7 @@ where
         challenger.observe_cap(cap);
     }
 
+    log::debug!("F::Packed typename: {:?}", <F as Packable>::Packing::type_id());
     let alphas = challenger.get_n_challenges(config.num_challenges);
     let quotient_polys = compute_quotient_polys::<F, <F as Packable>::Packing, C, S, D>(
         &stark,
