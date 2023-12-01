@@ -251,6 +251,7 @@ where
         F::coset_shift(),
         size,
     );
+    log::debug!("P::WIDTH: {}", P::WIDTH);
 
     // We will step by `P::WIDTH`, and in each iteration, evaluate the quotient polynomial at
     // a batch of `P::WIDTH` points.
