@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::iter::once;
+use std::any::type_name;
 
 use anyhow::{ensure, Result};
 use itertools::Itertools;
@@ -110,7 +111,7 @@ where
         challenger.observe_cap(cap);
     }
 
-    log::debug!("F::Packed typename: {:?}", <F as Packable>::Packing::type_id());
+    log::debug!("F::Packed typename: {:?}", type_name::<<F as Packable>::Packing>());
     let alphas = challenger.get_n_challenges(config.num_challenges);
     let quotient_polys = compute_quotient_polys::<F, <F as Packable>::Packing, C, S, D>(
         &stark,
