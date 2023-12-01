@@ -14,6 +14,7 @@ use crate::stark::Stark;
 use crate::util::trace_rows_to_poly_values;
 use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
+const NCOLUMNS: usize = 40;
 /// Toy STARK system used for testing.
 /// Computes a Fibonacci sequence with state `[x0, x1, i, j]` using the state transition
 /// `x0' <- x1, x1' <- x0 + x1, i' <- i+1, j' <- j+1`.
@@ -53,12 +54,22 @@ impl<F: RichField + Extendable<D>, const D: usize> FibonacciStark<F, D> {
             })
             .collect::<Vec<_>>();
         trace_rows[self.num_rows - 1][3] = F::ZERO; // So that column 2 and 3 are permutation of one another.
+        let trace_rows = trace_rows
+            .into_iter()
+            .map(|row| {
+                let mut new_row = [F::ZERO; NCOLUMNS];
+                for i in 0..(NCOLUMNS/4) {
+                    new_row[i*4..(i+1)*4].copy_from_slice(&row);
+                }
+                new_row
+            })
+            .collect::<Vec<_>>();
         trace_rows_to_poly_values(trace_rows)
     }
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStark<F, D> {
-    const COLUMNS: usize = 4;
+    const COLUMNS: usize = NCOLUMNS;
     const PUBLIC_INPUTS: usize = 3;
 
     fn eval_packed_generic<FE, P, const D2: usize>(
@@ -78,12 +89,14 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
         yield_constr
             .constraint_last_row(vars.local_values[1] - vars.public_inputs[Self::PI_INDEX_RES]);
 
-        // x0' <- x1
-        yield_constr.constraint_transition(vars.next_values[0] - vars.local_values[1]);
-        // x1' <- x0 + x1
-        yield_constr.constraint_transition(
-            vars.next_values[1] - vars.local_values[0] - vars.local_values[1],
-        );
+        for i in 0..10 {
+            // x0' <- x1
+            yield_constr.constraint_transition(vars.next_values[i*4] - vars.local_values[4*i+1]);
+            // x1' <- x0 + x1
+            yield_constr.constraint_transition(
+                vars.next_values[4*i+1] - vars.local_values[4*i+0] - vars.local_values[4*i+1],
+            );
+        }
     }
 
     fn eval_ext_circuit(
@@ -159,7 +172,7 @@ mod tests {
 
         env_logger::init();
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 19;
+        let num_rows = 1 << 20;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
