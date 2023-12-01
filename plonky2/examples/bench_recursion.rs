@@ -309,7 +309,9 @@ pub fn benchmark_function(
         _ => "proof",
     };
     // Start with a dummy proof of specified size
-    let inner = dummy_proof_function(config, log2_inner_size)?;
+    let mut dummy_config = config.clone();
+    dummy_config.num_routed_wires = 10;
+    let inner = dummy_proof_function(&dummy_config, log2_inner_size)?;
     let (_, _, common_data) = &inner;
     info!(
         "Initial {} degree {} = 2^{}",

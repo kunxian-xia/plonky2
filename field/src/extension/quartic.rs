@@ -204,11 +204,47 @@ impl<F: Extendable<4>> SubAssign for QuarticExtension<F> {
 impl<F: Extendable<4>> Mul for QuarticExtension<F> {
     type Output = Self;
 
+    // (a0+a1*x+a2*x^2+a3*x^3)*(b0+b1*x+b2*x^2+b3*x^3)
+    // = a0*b0 + (a1*b0+a0*b1)*x + (a0*b2+a1*b1+a2*b0)*x^2 + (a0*b3+a1*b2+a2*b1+a3*b0)*x^3
+    //   + (a1*b3+a2*b2+a3*b1)*x^4 = (a1*b3+a2*b2+a3*b1)*w
+    //   + (a2*b3+a3*b2) * x^5 = (a2*b3+a3*b2)*w*x
+    //   + (a3*b3)*x^6 = (a3*b3)*w*x^2
+    // = (a0*b0 + (a1*b3+a2*b2+a3*b1)*w) + (a1*b0+a0*b1 + (a2*b3+a3*b2)*w)*x +
+    //    (a0*b2+a1*b1+a2*b0 + a3*b3*w) * x^2 +
+    //    (a0*b3+a1*b2+a2*b1+a3*b0) * x^3
+
+    // i0 = a0*b0
+    // i1 = a1*b1
+    // i2 = a2*b2
+    // i3 = a3*b3
+    //
+    // A = (a0 + a1)*(b0 + b1)
+    // a0*b1 + a1*b0 = A - a0*b0 - a1*b1 = A - i0 - i1
+    // B = (a2 + a3) *(b2 + b3)
+    // a2*b3 + a3*b2 = B - a2*b2 - a3*b3 = B - i2 - i3
+    // C = (a0 + a2)*(b0 + b2)
+    // a0*b2 + a2*b0 = C - a0*b0 - a2*b2 = C - i0 - i2
+    // D = (a1 + a3)*(b1 + b3)
+    // a1*b3 + a3*b1 = D - a1*b1 - a3*b3 = D - i1 - i3
+    // E = (a0 + a3)*(b0 + b3)
+    // (a0*b3 + a3*b0) = E - a0*b0 - a3*b3 = E - i0 - i3
+    // F = (a1 + a2)*(b1 + b2)
+    // a1*b2 + a2*b1 = F - a1*b1 - a2*b2 = F - i1 -i2
+    //
+    // c0 = a0*b0 + (D - a1*b1 - a3*b3 + a2*b2)*w
+    //    = i0 + (D - i1-i3+i2)*w
+    // c1 = A - a0*b0 - a1*b1 + (B - a2*b2 - a3*b3)*w
+    //    = A - i0-i1 + (B - i2-i3)*w
+
+    // c2 = C - a0*b0 - a2*b2 + a1*b1 + a3*b3*w
+    //    = C - i0 - i2 + i1 + i3*w
+    // c3 = E - i0-i3 + F - i1 -i2
     #[inline]
     default fn mul(self, rhs: Self) -> Self {
         let Self([a0, a1, a2, a3]) = self;
         let Self([b0, b1, b2, b3]) = rhs;
 
+        // 19 mul, 12 add
         let c0 = a0 * b0 + <Self as OEF<4>>::W * (a1 * b3 + a2 * b2 + a3 * b1);
         let c1 = a0 * b1 + a1 * b0 + <Self as OEF<4>>::W * (a2 * b3 + a3 * b2);
         let c2 = a0 * b2 + a1 * b1 + a2 * b0 + <Self as OEF<4>>::W * a3 * b3;

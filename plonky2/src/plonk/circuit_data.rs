@@ -75,7 +75,7 @@ impl CircuitConfig {
             num_routed_wires: 80,
             num_constants: 2,
             use_base_arithmetic_gate: true,
-            security_bits: 100,
+            security_bits: 100, // 64*2 - 20 = 108
             num_challenges: 2,
             zero_knowledge: false,
             max_quotient_degree_factor: 8,
@@ -158,12 +158,17 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
     }
 
     pub fn prove(&self, inputs: PartialWitness<F>) -> Result<ProofWithPublicInputs<F, C, D>> {
-        prove::<F, C, D>(
+        let mut timing = TimingTree::default();
+        let ret = prove::<F, C, D>(
             &self.prover_only,
             &self.common,
             inputs,
-            &mut TimingTree::default(),
-        )
+            &mut timing,
+        )?;
+
+        timing.print();
+
+        Ok(ret)
     }
 
     pub fn verify(&self, proof_with_pis: ProofWithPublicInputs<F, C, D>) -> Result<()> {

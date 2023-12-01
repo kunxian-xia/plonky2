@@ -166,6 +166,7 @@ where
             .map(|column| PolynomialValues::new(column.clone()))
             .collect()
     );
+    log::info!("wire degree = {}, deg = {}", wires_values[0].len(), degree);
 
     let wires_commitment = timed!(
         timing,

@@ -617,15 +617,20 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for KeccakStark<F
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use env_logger::{try_init_from_env, Env, DEFAULT_FILTER_ENV};
+    use env_logger::{try_init_from_env, Env, DEFAULT_FILTER_ENV, init};
     use plonky2::field::polynomial::PolynomialValues;
     use plonky2::field::types::{Field, PrimeField64};
     use plonky2::fri::oracle::PolynomialBatch;
     use plonky2::iop::challenger::Challenger;
-    use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+    use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, KeccakGoldilocksConfig, PoseidonGoldilocksConfig};
     use plonky2::timed;
     use plonky2::util::timing::TimingTree;
     use tiny_keccak::keccakf;
+    use plonky2::field::extension::Extendable;
+    use plonky2::hash::hash_types::RichField;
+    use plonky2::iop::witness::PartialWitness;
+    use plonky2::plonk::circuit_builder::CircuitBuilder;
+    use plonky2::plonk::circuit_data::CircuitConfig;
 
     use crate::config::StarkConfig;
     use crate::cross_table_lookup::{
@@ -634,6 +639,8 @@ mod tests {
     use crate::keccak::columns::reg_output_limb;
     use crate::keccak::keccak_stark::{KeccakStark, NUM_INPUTS, NUM_ROUNDS};
     use crate::prover::prove_single_table;
+    use crate::recursive_verifier::add_virtual_stark_proof;
+    use crate::stark::Stark;
     use crate::stark_testing::{test_stark_circuit_constraints, test_stark_low_degree};
 
     #[test]
@@ -656,6 +663,7 @@ mod tests {
         type F = <C as GenericConfig<D>>::F;
         type S = KeccakStark<F, D>;
 
+        init_logger();
         let stark = S {
             f: Default::default(),
         };
@@ -700,7 +708,8 @@ mod tests {
     fn keccak_benchmark() -> Result<()> {
         const NUM_PERMS: usize = 85;
         const D: usize = 2;
-        type C = PoseidonGoldilocksConfig;
+        // type C = PoseidonGoldilocksConfig;
+        type C = KeccakGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         type S = KeccakStark<F, D>;
         let stark = S::default();
@@ -717,6 +726,7 @@ mod tests {
             "generate trace",
             stark.generate_trace(input, 8, &mut timing)
         );
+        log::info!("trace len: {}", trace_poly_values[0].len());
 
         // TODO: Cloning this isn't great; consider having `from_values` accept a reference,
         // or having `compute_permutation_z_polys` read trace values from the `PolynomialBatch`.
@@ -750,7 +760,7 @@ mod tests {
             zs_columns: vec![ctl_z_data.clone(); config.num_challenges],
         };
 
-        prove_single_table(
+        let proof = prove_single_table(
             &stark,
             &config,
             &trace_poly_values,
@@ -766,6 +776,46 @@ mod tests {
         timing.print();
         Ok(())
     }
+    // fn recursive_proof<
+    //     F: RichField + Extendable<D>,
+    //     C: GenericConfig<D, F = F>,
+    //     S: Stark<F, D> + Copy,
+    //     InnerC: GenericConfig<D, F = F>,
+    //     const D: usize,
+    // >(
+    //     stark: S,
+    //     inner_proof: StarkProofWithPublicInputs<F, InnerC, D>,
+    //     inner_config: &StarkConfig,
+    //     print_gate_counts: bool,
+    // ) -> Result<()>
+    //     where
+    //         InnerC::Hasher: AlgebraicHasher<F>,
+    //         [(); S::COLUMNS]:,
+    //         [(); S::PUBLIC_INPUTS]:,
+    // {
+    //     let circuit_config = CircuitConfig::standard_recursion_config();
+    //     let mut builder = CircuitBuilder::<F, D>::new(circuit_config);
+    //     let mut pw = PartialWitness::new();
+    //     let degree_bits = inner_proof.proof.recover_degree_bits(inner_config);
+    //     add_virtual_stark_proof(
+    //         &mut builder,
+    //         &stark,
+    //         &inner_config,
+    //         degree_bits,
+    //         0,
+    //     );
+    //
+    //     verify_stark_proof_circuit::<F, InnerC, S, D>(&mut builder, stark, pt, inner_config);
+    //
+    //     if print_gate_counts {
+    //         builder.print_gate_counts(0);
+    //     }
+    //
+    //     let data = builder.build::<C>();
+    //     let proof = data.prove(pw)?;
+    //     data.verify(proof)
+    // }
+
 
     fn init_logger() {
         let _ = try_init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "debug"));

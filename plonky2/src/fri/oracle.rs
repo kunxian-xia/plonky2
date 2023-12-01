@@ -90,7 +90,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
         let degree = polynomials[0].len();
         let lde_values = timed!(
             timing,
-            "FFT + blinding",
+            format!("FFT + blinding: {}", polynomials.len()).as_str(),
             Self::lde_values(&polynomials, rate_bits, blinding, fft_root_table)
         );
 

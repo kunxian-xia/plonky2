@@ -69,6 +69,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
         FE: FieldExtension<D2, BaseField = F>,
         P: PackedField<Scalar = FE>,
     {
+        // x0[0] = pi[0], x1[0] = pi[1], x1[num-1] = pi[2]
         // Check public inputs.
         yield_constr
             .constraint_first_row(vars.local_values[0] - vars.public_inputs[Self::PI_INDEX_X0]);
@@ -150,24 +151,27 @@ mod tests {
     }
 
     #[test]
-    fn test_fibonacci_stark() -> Result<()> {
+    fn test_fibonacci_stark2() -> Result<()> {
         const D: usize = 2;
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         type S = FibonacciStark<F, D>;
 
+        env_logger::init();
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 5;
+        let num_rows = 1 << 19;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
+        let mut timing = TimingTree::default();
         let proof = prove::<F, C, S, D>(
             stark,
             &config,
             trace,
             public_inputs,
-            &mut TimingTree::default(),
+            &mut timing,
         )?;
+        timing.print();
 
         verify_stark_proof(stark, proof, &config)
     }

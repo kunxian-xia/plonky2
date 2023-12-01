@@ -180,8 +180,11 @@ impl<F: Extendable<2>> SubAssign for QuadraticExtension<F> {
 impl<F: Extendable<2>> Mul for QuadraticExtension<F> {
     type Output = Self;
 
+    // 5 mul + 2 add
     #[inline]
     default fn mul(self, rhs: Self) -> Self {
+        // (a + bi) * (c + di)
+        // ac + w*bd + (ad+bc)*i
         let Self([a0, a1]) = self;
         let Self([b0, b1]) = rhs;
 
@@ -200,11 +203,13 @@ impl<F: Extendable<2>> MulAssign for QuadraticExtension<F> {
 }
 
 impl<F: Extendable<2>> Square for QuadraticExtension<F> {
+    // 2 square, 2 mul, 1 add, 1 double
     #[inline(always)]
     fn square(&self) -> Self {
         // Specialising mul reduces the computation of c1 from 2 muls
         // and one add to one mul and a shift
 
+        // (a+bi)^2 = a^2+w*b^2 + (ab*2)*i
         let Self([a0, a1]) = *self;
 
         let c0 = a0.square() + <Self as OEF<2>>::W * a1.square();

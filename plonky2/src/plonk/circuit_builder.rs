@@ -385,6 +385,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         let gate_ref = GateRef::new(gate_type);
         self.gates.insert(gate_ref.clone());
 
+        log::trace!("add gate {:?}, constants: {:?}", gate_ref, constants);
         self.gate_instances.push(GateInstance {
             gate_ref,
             constants,
@@ -1085,6 +1086,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
             .map(|gate| gate.0.num_constraints())
             .max()
             .expect("No gates?");
+        log::debug!("num_gate_constraints: {:?}", num_gate_constraints);
 
         let num_partial_products =
             num_partial_products(self.config.num_routed_wires, quotient_degree_factor);

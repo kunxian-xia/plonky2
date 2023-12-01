@@ -11,6 +11,7 @@ use crate::types::Field;
 
 pub type FftRootTable<F> = Vec<Vec<F>>;
 
+// twiddles
 pub fn fft_root_table<F: Field>(n: usize) -> FftRootTable<F> {
     let lg_n = log2_strict(n);
     // bases[i] = g^2^i, for i = 0, ..., lg_n - 1

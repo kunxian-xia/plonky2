@@ -7,6 +7,7 @@ use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CircuitConfig;
 use plonky2::plonk::config::GenericConfig;
+use plonky2::util::timing::TimingTree;
 use plonky2::util::transpose;
 use plonky2_util::{log2_ceil, log2_strict};
 
