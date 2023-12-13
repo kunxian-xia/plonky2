@@ -76,6 +76,7 @@ pub trait Field:
     const TWO: Self;
     const NEG_ONE: Self;
 
+    // rate_bits + degree <= two_adicity
     /// The 2-adicity of this field's multiplicative group.
     const TWO_ADICITY: usize;
 

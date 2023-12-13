@@ -1,4 +1,3 @@
-use alloc::vec;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
@@ -58,8 +57,8 @@ impl<F: RichField + Extendable<D>, const D: usize> FibonacciStark<F, D> {
             .into_iter()
             .map(|row| {
                 let mut new_row = [F::ZERO; NCOLUMNS];
-                for i in 0..(NCOLUMNS/4) {
-                    new_row[i*4..(i+1)*4].copy_from_slice(&row);
+                for i in 0..(NCOLUMNS / 4) {
+                    new_row[i * 4..(i + 1) * 4].copy_from_slice(&row);
                 }
                 new_row
             })
@@ -89,12 +88,15 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
         yield_constr
             .constraint_last_row(vars.local_values[1] - vars.public_inputs[Self::PI_INDEX_RES]);
 
-        for i in 0..(NCOLUMNS/4) {
+        for i in 0..(NCOLUMNS / 4) {
             // x0' <- x1
-            yield_constr.constraint_transition(vars.next_values[i*4] - vars.local_values[4*i+1]);
+            yield_constr
+                .constraint_transition(vars.next_values[i * 4] - vars.local_values[4 * i + 1]);
             // x1' <- x0 + x1
             yield_constr.constraint_transition(
-                vars.next_values[4*i+1] - vars.local_values[4*i+0] - vars.local_values[4*i+1],
+                vars.next_values[4 * i + 1]
+                    - vars.local_values[4 * i + 0]
+                    - vars.local_values[4 * i + 1],
             );
         }
     }
@@ -116,10 +118,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
         yield_constr.constraint_last_row(builder, pis_constraints[2]);
 
         for i in 0..(NCOLUMNS / 4) {
-            let i0 = i*4;
-            let i1 = i*4 + 1;
+            let i0 = i * 4;
+            let i1 = i * 4 + 1;
             // x0' <- x1
-            let first_col_constraint = builder.sub_extension(vars.next_values[i0], vars.local_values[i1]);
+            let first_col_constraint =
+                builder.sub_extension(vars.next_values[i0], vars.local_values[i1]);
             yield_constr.constraint_transition(builder, first_col_constraint);
             // x1' <- x0 + x1
             let second_col_constraint = {
@@ -135,7 +138,14 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for FibonacciStar
     }
 
     fn permutation_pairs(&self) -> Vec<PermutationPair> {
-        vec![PermutationPair::singletons(2, 3)]
+        (0..(NCOLUMNS / 4))
+            .map(|i| {
+                let i2 = 4 * i + 2;
+                let i3 = 4 * i + 3;
+
+                PermutationPair::singletons(i2, i3)
+            })
+            .collect::<Vec<PermutationPair>>()
     }
 }
 
@@ -144,11 +154,16 @@ mod tests {
     use anyhow::Result;
     use plonky2::field::extension::Extendable;
     use plonky2::field::types::Field;
+    use plonky2::gates::gate::Gate;
+    use plonky2::gates::poseidon;
+    use plonky2::gates::poseidon::PoseidonGate;
     use plonky2::hash::hash_types::RichField;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::CircuitConfig;
-    use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, PoseidonGoldilocksConfig};
+    use plonky2::plonk::config::{
+        AlgebraicHasher, GenericConfig, KeccakGoldilocksConfig, PoseidonGoldilocksConfig,
+    };
     use plonky2::util::timing::TimingTree;
 
     use crate::config::StarkConfig;
@@ -170,24 +185,19 @@ mod tests {
     #[test]
     fn test_fibonacci_stark2() -> Result<()> {
         const D: usize = 2;
-        type C = PoseidonGoldilocksConfig;
+        // type C = PoseidonGoldilocksConfig;
+        type C = KeccakGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         type S = FibonacciStark<F, D>;
 
         env_logger::init();
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 20;
+        let num_rows = 1 << 21;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
         let mut timing = TimingTree::default();
-        let proof = prove::<F, C, S, D>(
-            stark,
-            &config,
-            trace,
-            public_inputs,
-            &mut timing,
-        )?;
+        let proof = prove::<F, C, S, D>(stark, &config, trace, public_inputs, &mut timing)?;
         timing.print();
 
         verify_stark_proof(stark, proof, &config)
@@ -226,7 +236,7 @@ mod tests {
         type S = FibonacciStark<F, D>;
 
         let config = StarkConfig::standard_fast_config();
-        let num_rows = 1 << 19;
+        let num_rows = 1 << 20;
         let public_inputs = [F::ZERO, F::ONE, fibonacci(num_rows - 1, F::ZERO, F::ONE)];
         let stark = S::new(num_rows);
         let trace = stark.generate_trace(public_inputs[0], public_inputs[1]);
@@ -240,6 +250,13 @@ mod tests {
         )?;
         stark_prove_timing.print();
         verify_stark_proof(stark, proof.clone(), &config)?;
+
+        let poseidon_gate: PoseidonGate<F, D> = poseidon::PoseidonGate::new();
+        log::info!("poseidon gate num wires: {}", poseidon_gate.num_wires());
+        log::info!(
+            "poseidon gate num_constraints: {}",
+            poseidon_gate.num_constraints()
+        );
 
         recursive_proof::<F, C, S, C, D>(stark, proof, &config, true)
     }

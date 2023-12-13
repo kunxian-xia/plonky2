@@ -285,6 +285,7 @@ impl<F: Field> PolynomialCoeffs<F> {
         zero_factor: Option<usize>,
         root_table: Option<&FftRootTable<F>>,
     ) -> PolynomialValues<F> {
+        // FIXME: this is single-threaded.
         let modified_poly: Self = shift
             .powers()
             .zip(&self.coeffs)

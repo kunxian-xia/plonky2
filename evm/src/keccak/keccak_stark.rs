@@ -617,27 +617,29 @@ impl<F: RichField + Extendable<D>, const D: usize> Stark<F, D> for KeccakStark<F
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use env_logger::{try_init_from_env, Env, DEFAULT_FILTER_ENV, init};
+    use env_logger::{init, try_init_from_env, Env, DEFAULT_FILTER_ENV};
+    use plonky2::field::extension::Extendable;
     use plonky2::field::polynomial::PolynomialValues;
     use plonky2::field::types::{Field, PrimeField64};
     use plonky2::fri::oracle::PolynomialBatch;
-    use plonky2::iop::challenger::Challenger;
-    use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, KeccakGoldilocksConfig, PoseidonGoldilocksConfig};
-    use plonky2::timed;
-    use plonky2::util::timing::TimingTree;
-    use tiny_keccak::keccakf;
-    use plonky2::field::extension::Extendable;
     use plonky2::hash::hash_types::RichField;
+    use plonky2::iop::challenger::Challenger;
     use plonky2::iop::witness::PartialWitness;
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::CircuitConfig;
+    use plonky2::plonk::config::{
+        AlgebraicHasher, GenericConfig, KeccakGoldilocksConfig, PoseidonGoldilocksConfig,
+    };
+    use plonky2::timed;
+    use plonky2::util::timing::TimingTree;
+    use tiny_keccak::keccakf;
 
     use crate::config::StarkConfig;
     use crate::cross_table_lookup::{
         CtlData, CtlZData, GrandProductChallenge, GrandProductChallengeSet,
     };
     use crate::keccak::columns::reg_output_limb;
-    use crate::keccak::keccak_stark::{KeccakStark, NUM_INPUTS, NUM_ROUNDS};
+    use crate::keccak::keccak_stark::{KeccakStark, NUM_COLUMNS, NUM_INPUTS, NUM_ROUNDS};
     use crate::prover::prove_single_table;
     use crate::recursive_verifier::add_virtual_stark_proof;
     use crate::stark::Stark;
@@ -706,7 +708,7 @@ mod tests {
 
     #[test]
     fn keccak_benchmark() -> Result<()> {
-        const NUM_PERMS: usize = 85;
+        const NUM_PERMS: usize = 85 * 1024;
         const D: usize = 2;
         // type C = PoseidonGoldilocksConfig;
         type C = KeccakGoldilocksConfig;
@@ -717,6 +719,8 @@ mod tests {
 
         init_logger();
 
+        // trace mem = rows * columns * 8
+        log::debug!("NUM_COLUMNS: {}", NUM_COLUMNS);
         let input: Vec<([u64; NUM_INPUTS], usize)> =
             (0..NUM_PERMS).map(|_| (rand::random(), 0)).collect();
 
@@ -815,7 +819,6 @@ mod tests {
     //     let proof = data.prove(pw)?;
     //     data.verify(proof)
     // }
-
 
     fn init_logger() {
         let _ = try_init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "debug"));

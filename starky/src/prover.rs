@@ -44,6 +44,12 @@ where
     [(); S::COLUMNS]:,
     [(); S::PUBLIC_INPUTS]:,
 {
+    log::debug!(
+        "F::Packing typename: {:?}",
+        type_name::<<F as Packable>::Packing>()
+    );
+    log::debug!("F::Packing width: {}", <F as Packable>::Packing::WIDTH);
+
     let degree = trace_poly_values[0].len();
     let degree_bits = log2_strict(degree);
     let fri_params = config.fri_params(degree_bits);
@@ -54,6 +60,12 @@ where
         "FRI total reduction arity is too large.",
     );
 
+    // phase 1: advice polys (evaluation form) -> advice commitments
+    // advice poly -- (ifft) --> advice coeff form --(coset-fft)--> advice evaluation on coset shift*H
+    // |H| = advice.len() << rate_bits.
+
+    // STARK: commitment is built from merkle tree root (or cap)
+    // SNARK: commitment is built from msm.
     let trace_commitment = timed!(
         timing,
         "compute trace commitment",
@@ -73,18 +85,23 @@ where
     let mut challenger = Challenger::new();
     challenger.observe_cap(&trace_cap);
 
-    // Permutation arguments.
+    // phase 2 <-> halo2 phase 3
+    // Permutation arguments. (shuffle)
     let permutation_zs_commitment_challenges = stark.uses_permutation_args().then(|| {
         let permutation_challenge_sets = get_n_permutation_challenge_sets(
             &mut challenger,
             config.num_challenges,
             stark.permutation_batch_size(),
         );
-        let permutation_z_polys = compute_permutation_z_polys::<F, S, D>(
-            &stark,
-            config,
-            &trace_poly_values,
-            &permutation_challenge_sets,
+        let permutation_z_polys = timed!(
+            timing,
+            "compute permutation Z(X)",
+            compute_permutation_z_polys::<F, S, D>(
+                &stark,
+                config,
+                &trace_poly_values,
+                &permutation_challenge_sets,
+            )
         );
 
         let permutation_zs_commitment = timed!(
@@ -111,16 +128,22 @@ where
         challenger.observe_cap(cap);
     }
 
-    log::debug!("F::Packed typename: {:?}", type_name::<<F as Packable>::Packing>());
+    // log::debug!("F::Packed typename: {:?}", type_name::<<F as Packable>::Packing>());
     let alphas = challenger.get_n_challenges(config.num_challenges);
-    let quotient_polys = compute_quotient_polys::<F, <F as Packable>::Packing, C, S, D>(
-        &stark,
-        &trace_commitment,
-        &permutation_zs_commitment_challenges,
-        public_inputs,
-        alphas,
-        degree_bits,
-        config,
+    // phase 3 <-> phase 4 in halo2
+
+    let quotient_polys = timed!(
+        timing,
+        "compute quotient polys",
+        compute_quotient_polys::<F, <F as Packable>::Packing, C, S, D>(
+            &stark,
+            &trace_commitment,
+            &permutation_zs_commitment_challenges,
+            public_inputs,
+            alphas,
+            degree_bits,
+            config,
+        )
     );
     let all_quotient_chunks = quotient_polys
         .into_par_iter()
@@ -147,6 +170,7 @@ where
     let quotient_polys_cap = quotient_commitment.merkle_tree.cap.clone();
     challenger.observe_cap(&quotient_polys_cap);
 
+    // phase 4 <-> halo2 phase 5
     let zeta = challenger.get_extension_challenge::<D>();
     // To avoid leaking witness data, we want to ensure that our opening locations, `zeta` and
     // `g * zeta`, are not in our subgroup `H`. It suffices to check `zeta` only, since
@@ -247,6 +271,8 @@ where
 
     // Last element of the subgroup.
     let last = F::primitive_root_of_unity(degree_bits).inverse();
+    // NOTE(kunxian): evaluate quotient polynomial on the coset shift*H1 (where |H1| = degree << quotient_degree_bits)
+    // note that the trace polys are evaluated on a possibly larger subgroup H (where |H| = degree << rate_bits)
     let size = degree << quotient_degree_bits;
     let coset = F::cyclic_subgroup_coset_known_order(
         F::primitive_root_of_unity(degree_bits + quotient_degree_bits),

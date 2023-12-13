@@ -18,6 +18,7 @@ pub struct ConstraintConsumer<P: PackedField> {
     // result, it should be made private.
     pub constraint_accs: Vec<P>,
 
+    // note(kunxian): why not use lagrange basis?
     /// The evaluation of `X - g^(n-1)`.
     z_last: P,
 
@@ -50,10 +51,19 @@ impl<P: PackedField> ConstraintConsumer<P> {
         self.constraint_accs
     }
 
+    // L0(X) = 1 if X = g^0
+    //       = 0 if X != g^0
+
+    // z_last(X) = 0 if X = g^(n-1)
+    //          != 0 if X != g^(n-1)
+    // z_l(X) = 1 - L_last(X) = 0 only on the last row.
+
     /// Add one constraint valid on all rows except the last.
     pub fn constraint_transition(&mut self, constraint: P) {
         self.constraint(constraint * self.z_last);
     }
+
+    // note(kunxian): avoid extension field arithmetic by running multiple rounds of challenge in parallel
 
     /// Add one constraint on all rows.
     pub fn constraint(&mut self, constraint: P) {
