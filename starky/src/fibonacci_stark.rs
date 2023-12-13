@@ -13,7 +13,7 @@ use crate::stark::Stark;
 use crate::util::trace_rows_to_poly_values;
 use crate::vars::{StarkEvaluationTargets, StarkEvaluationVars};
 
-const NCOLUMNS: usize = 40;
+const NCOLUMNS: usize = 600;
 /// Toy STARK system used for testing.
 /// Computes a Fibonacci sequence with state `[x0, x1, i, j]` using the state transition
 /// `x0' <- x1, x1' <- x0 + x1, i' <- i+1, j' <- j+1`.
@@ -183,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fibonacci_stark2() -> Result<()> {
+    fn test_fibonacci_stark_prover() -> Result<()> {
         const D: usize = 2;
         // type C = PoseidonGoldilocksConfig;
         type C = KeccakGoldilocksConfig;
