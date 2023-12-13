@@ -385,7 +385,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         let gate_ref = GateRef::new(gate_type);
         self.gates.insert(gate_ref.clone());
 
-        log::trace!("add gate {:?}, constants: {:?}", gate_ref, constants);
+        log::trace!("add gate {:?} at row: {}", gate_ref, row);
         self.gate_instances.push(GateInstance {
             gate_ref,
             constants,

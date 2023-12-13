@@ -159,12 +159,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
 
     pub fn prove(&self, inputs: PartialWitness<F>) -> Result<ProofWithPublicInputs<F, C, D>> {
         let mut timing = TimingTree::default();
-        let ret = prove::<F, C, D>(
-            &self.prover_only,
-            &self.common,
-            inputs,
-            &mut timing,
-        )?;
+        let ret = prove::<F, C, D>(&self.prover_only, &self.common, inputs, &mut timing)?;
 
         timing.print();
 

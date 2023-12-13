@@ -157,6 +157,7 @@ where
         partition_witness.full_witness()
     );
 
+    // phase 1
     let wires_values: Vec<PolynomialValues<F>> = timed!(
         timing,
         "compute wire polynomials",
@@ -189,6 +190,7 @@ where
 
     challenger.observe_cap::<C::Hasher>(&wires_commitment.merkle_tree.cap);
 
+    // phase 2
     // We need 4 values per challenge: 2 for the combos, 1 for (X-combo) in the accumulators and 1 to prove that the lookup table was computed correctly.
     // We can reuse betas and gammas for two of them.
     let num_lookup_challenges = NUM_COINS_LOOKUP * num_challenges;

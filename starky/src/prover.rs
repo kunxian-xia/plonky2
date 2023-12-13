@@ -143,6 +143,7 @@ where
             alphas,
             degree_bits,
             config,
+
         )
     );
     let all_quotient_chunks = quotient_polys
@@ -232,6 +233,7 @@ fn compute_quotient_polys<'a, F, P, C, S, const D: usize>(
     alphas: Vec<F>,
     degree_bits: usize,
     config: &StarkConfig,
+    timing: &mut TimingTree,
 ) -> Vec<PolynomialCoeffs<F>>
 where
     F: RichField + Extendable<D>,
@@ -339,6 +341,10 @@ where
         })
         .collect::<Vec<_>>();
 
+    timed!(
+        timing,
+        "transpose & coset_ifft "
+    )
     transpose(&quotient_values)
         .into_par_iter()
         .map(PolynomialValues::new)

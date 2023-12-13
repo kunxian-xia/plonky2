@@ -48,7 +48,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PoseidonGate<F, D> {
     /// is useful for ordering hashes in Merkle proofs. Otherwise, this should be set to 0.
     pub const WIRE_SWAP: usize = 2 * SPONGE_WIDTH;
 
-    const START_DELTA: usize = 2 * SPONGE_WIDTH + 1;
+    const START_DELTA: usize = 2 * SPONGE_WIDTH + 1; // 12 * 2 + 1 = 25
 
     /// A wire which stores `swap * (input[i + 4] - input[i])`; used to compute the swapped inputs.
     fn wire_delta(i: usize) -> usize {
@@ -56,7 +56,9 @@ impl<F: RichField + Extendable<D>, const D: usize> PoseidonGate<F, D> {
         Self::START_DELTA + i
     }
 
-    const START_FULL_0: usize = Self::START_DELTA + 4;
+    // wire_inputs (12) | wire_outputs (12) | swap (1) | delta (4)
+    //   | sbox_0_round_1 (12) | sbox_0_round_2 (12) | sbox_0_round_3 (12)
+    const START_FULL_0: usize = Self::START_DELTA + 4; // 29
 
     /// A wire which stores the input of the `i`-th S-box of the `round`-th round of the first set
     /// of full rounds.
@@ -67,7 +69,7 @@ impl<F: RichField + Extendable<D>, const D: usize> PoseidonGate<F, D> {
         );
         debug_assert!(round < poseidon::HALF_N_FULL_ROUNDS);
         debug_assert!(i < SPONGE_WIDTH);
-        Self::START_FULL_0 + SPONGE_WIDTH * (round - 1) + i
+        Self::START_FULL_0 + SPONGE_WIDTH * (round - 1) + i //
     }
 
     const START_PARTIAL: usize =
@@ -81,6 +83,11 @@ impl<F: RichField + Extendable<D>, const D: usize> PoseidonGate<F, D> {
 
     const START_FULL_1: usize = Self::START_PARTIAL + poseidon::N_PARTIAL_ROUNDS;
 
+    // wire_inputs (12) | wire_outputs (12) | swap (1) | delta (4)
+    //   | sbox_0_round_1 (12) | sbox_0_round_2 (12) | sbox_0_round_3 (12)
+    //   | partial_sbox_0 (1) | ... | partial_sbox_21 (1)
+    //   | sbox_1_round_0 (12) | ...
+    //   | sbox_1_round_3 (12)
     /// A wire which stores the input of the `i`-th S-box of the `round`-th round of the second set
     /// of full rounds.
     fn wire_full_sbox_1(round: usize, i: usize) -> usize {
@@ -113,6 +120,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for PoseidonGate<F
     }
 
     fn eval_unfiltered(&self, vars: EvaluationVars<F, D>) -> Vec<F::Extension> {
+        // what is the criteria for constraint?
         let mut constraints = Vec::with_capacity(self.num_constraints());
 
         // Assert that `swap` is binary.
@@ -139,12 +147,16 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for PoseidonGate<F
         for i in 8..SPONGE_WIDTH {
             state[i] = vars.local_wires[Self::wire_input(i)];
         }
+        // state[i] = wire[input_rhs] * swap + (1 - swap)* wire[input_lhs]
+        // deg = 2
 
         let mut round_ctr = 0;
 
         // First set of full rounds.
         for r in 0..poseidon::HALF_N_FULL_ROUNDS {
             <F as Poseidon>::constant_layer_field(&mut state, round_ctr);
+            // state[i] = state[i] + arc.
+            // deg = 1
             if r != 0 {
                 for i in 0..SPONGE_WIDTH {
                     let sbox_in = vars.local_wires[Self::wire_full_sbox_0(r, i)];
@@ -152,12 +164,17 @@ impl<F: RichField + Extendable<D>, const D: usize> Gate<F, D> for PoseidonGate<F
                     state[i] = sbox_in;
                 }
             }
+            // state[i] = (state[i] + arc)^7
+            // deg = 7
             <F as Poseidon>::sbox_layer_field(&mut state);
+            // mul by mds matrix
+            // deg = 1
             state = <F as Poseidon>::mds_layer_field(&state);
             round_ctr += 1;
         }
 
         // Partial rounds.
+        // deg = 1
         <F as Poseidon>::partial_first_constant_layer(&mut state);
         state = <F as Poseidon>::mds_partial_layer_init(&state);
         for r in 0..(poseidon::N_PARTIAL_ROUNDS - 1) {

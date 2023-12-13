@@ -21,7 +21,7 @@ pub(crate) fn bench_ffts<F: Field>(c: &mut Criterion) {
 pub(crate) fn bench_ldes<F: Field>(c: &mut Criterion, rate_bits: usize) {
     // const RATE_BITS: usize = 3;
 
-    let mut group = c.benchmark_group(&format!("lde<{}>", type_name::<F>()));
+    let mut group = c.benchmark_group(&format!("lde<{}, rate={}>", type_name::<F>(), rate_bits));
 
     for size_log in [20, 21, 22, 23] {
         let orig_size = 1 << (size_log - rate_bits);

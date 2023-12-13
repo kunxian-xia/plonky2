@@ -11,7 +11,7 @@ use crate::util::strided_view::PackedStridedView;
 #[derive(Debug, Copy, Clone)]
 pub struct EvaluationVars<'a, F: RichField + Extendable<D>, const D: usize> {
     pub local_constants: &'a [F::Extension],
-    pub local_wires: &'a [F::Extension],// why wire is from F::Extension ?
+    pub local_wires: &'a [F::Extension], // why wire is from F::Extension ?
     pub public_inputs_hash: &'a HashOut<F>,
 }
 

@@ -88,12 +88,14 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
         fft_root_table: Option<&FftRootTable<F>>,
     ) -> Self {
         let degree = polynomials[0].len();
+        // lde on the coset shift*H
         let lde_values = timed!(
             timing,
             format!("FFT + blinding: {}", polynomials.len()).as_str(),
             Self::lde_values(&polynomials, rate_bits, blinding, fft_root_table)
         );
 
+        // transpose from column-major to row-major
         let mut leaves = timed!(timing, "transpose LDEs", transpose(&lde_values));
         reverse_index_bits_in_place(&mut leaves);
         let merkle_tree = timed!(
@@ -111,6 +113,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
         }
     }
 
+    // lde extension on the coset shift*H where |H| = degree << rate_bits
     fn lde_values(
         polynomials: &[PolynomialCoeffs<F>],
         rate_bits: usize,
