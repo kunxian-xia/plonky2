@@ -9,7 +9,7 @@ use tynm::type_name;
 pub(crate) fn bench_ffts<F: Field>(c: &mut Criterion) {
     let mut group = c.benchmark_group(&format!("fft<{}>", type_name::<F>()));
 
-    for size_log in [19, 21, 23] {
+    for size_log in [19, 20, 21, 22, 23] {
         let size = 1 << size_log;
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             let coeffs = PolynomialCoeffs::new(F::rand_vec(size));
@@ -23,7 +23,7 @@ pub(crate) fn bench_ldes<F: Field>(c: &mut Criterion, rate_bits: usize) {
 
     let mut group = c.benchmark_group(&format!("lde<{}>", type_name::<F>()));
 
-    for size_log in [20, 21] {
+    for size_log in [20, 21, 22, 23] {
         let orig_size = 1 << (size_log - rate_bits);
         let lde_size = 1 << size_log;
 
@@ -39,8 +39,9 @@ pub(crate) fn bench_ldes<F: Field>(c: &mut Criterion, rate_bits: usize) {
 
 fn criterion_benchmark(c: &mut Criterion) {
     bench_ffts::<GoldilocksField>(c);
-    bench_ldes::<GoldilocksField>(c, 1);
-    bench_ldes::<GoldilocksField>(c, 3);
+    bench_ldes::<GoldilocksField>(c, 1); // hermez
+    bench_ldes::<GoldilocksField>(c, 2);
+    bench_ldes::<GoldilocksField>(c, 3); // recursion and scroll
 }
 
 criterion_group!(benches, criterion_benchmark);
