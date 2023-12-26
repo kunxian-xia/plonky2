@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::extension::{Extendable, FieldExtension};
 use crate::fft::{fft, fft_with_options, ifft, FftRootTable};
 use crate::types::Field;
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 /// A polynomial in point-value form.
 ///
@@ -306,7 +307,7 @@ impl<F: Field> PolynomialCoeffs<F> {
     where
         F: Extendable<D>,
     {
-        PolynomialCoeffs::new(self.coeffs.iter().map(|&c| rhs.scalar_mul(c)).collect())
+        PolynomialCoeffs::new(self.coeffs.par_iter().map(|&c| rhs.scalar_mul(c)).collect())
     }
 }
 
