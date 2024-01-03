@@ -29,7 +29,8 @@ pub const SALT_SIZE: usize = 4;
 #[derive(Eq, PartialEq, Debug)]
 pub struct PolynomialBatch<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
 {
-    pub polynomials: Vec<PolynomialCoeffs<F>>,
+    // to open f(x) we need to evaluate it at ood(out-of-domain) point z and z*g
+    pub polynomials: Vec<PolynomialCoeffs<F>>, // cached to compute composition polynomial
     pub merkle_tree: MerkleTree<F, C::Hasher>,
     pub degree_log: usize,
     pub rate_bits: usize,
@@ -187,7 +188,12 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
         let alpha = challenger.get_extension_challenge::<D>();
         let mut alpha = ReducingFactor::new(alpha);
 
+        // similar to deep composition polynomial
+        // final_poly = \sum alpha^i (trace_i(x)-trace_i(z)) / (x-z)
+        //               + \sum alpha^i (trace_i(x)-trace_i(z*g))/(x-z*g)
+        //               + \sum alpha^j quotient_j(x)-quotient_j(z)/(x-z)
         // Final low-degree polynomial that goes into FRI.
+        // in coeff-form
         let mut final_poly = PolynomialCoeffs::empty();
 
         // Each batch `i` consists of an opening point `z_i` and polynomials `{f_ij}_j` to be opened at that point.

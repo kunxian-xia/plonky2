@@ -24,6 +24,9 @@ pub trait Stark<F: RichField + Extendable<D>, const D: usize>: Sync {
     /// The number of public inputs.
     const PUBLIC_INPUTS: usize;
 
+    // F: base field
+    // F::extension: extension field
+
     /// Evaluate constraints at a vector of points.
     ///
     /// The points are elements of a field `FE`, a degree `D2` extension of `F`. This lets us

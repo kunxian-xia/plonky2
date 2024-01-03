@@ -143,7 +143,7 @@ where
             alphas,
             degree_bits,
             config,
-
+            timing,
         )
     );
     let all_quotient_chunks = quotient_polys
@@ -343,11 +343,11 @@ where
 
     timed!(
         timing,
-        "transpose & coset_ifft "
-    )
-    transpose(&quotient_values)
+        "transpose & coset_ifft",
+        transpose(&quotient_values)
         .into_par_iter()
         .map(PolynomialValues::new)
         .map(|values| values.coset_ifft(F::coset_shift()))
         .collect()
+    )
 }
