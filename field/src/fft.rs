@@ -34,7 +34,7 @@ pub fn fft_root_table<F: Field>(n: usize) -> FftRootTable<F> {
 }
 
 #[inline]
-fn fft_dispatch<F: Field>(
+pub fn fft_dispatch<F: Field>(
     input: &mut [F],
     zero_factor: Option<usize>,
     root_table: Option<&FftRootTable<F>>,

@@ -9,7 +9,7 @@ where
     P: PackedField<Scalar = F>,
 {
     pub local_values: &'a [P; COLUMNS], // a
-    pub next_values: &'a [P; COLUMNS], // a'
+    pub next_values: &'a [P; COLUMNS],  // a'
     pub public_inputs: &'a [P::Scalar; PUBLIC_INPUTS],
 }
 
