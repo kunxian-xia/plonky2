@@ -5,10 +5,15 @@ use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::polynomial::PolynomialCoeffs;
 use plonky2::field::types::Field;
 use plonky2_field::fft::fft_dispatch;
+use plonky2_field::packable::Packable;
 use tynm::type_name;
 
 pub(crate) fn bench_ffts<F: Field>(c: &mut Criterion) {
-    let mut group = c.benchmark_group(&format!("fft<{}>", type_name::<F>()));
+    let mut group = c.benchmark_group(&format!(
+        "fft<{}, {}>",
+        type_name::<F>(),
+        type_name::<<F as Packable>::Packing>()
+    ));
 
     for size_log in [19, 20, 21, 22, 23, 24, 25, 26] {
         let size = 1 << size_log;
