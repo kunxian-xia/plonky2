@@ -1,3 +1,5 @@
+extern crate core;
+
 mod allocator;
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
@@ -6,6 +8,9 @@ use plonky2::field::extension::quartic::QuarticExtension;
 use plonky2::field::extension::quintic::QuinticExtension;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
+use plonky2_field::packable::Packable;
+use plonky2_field::packed::PackedField;
+use plonky2_field::types::Sample;
 use tynm::type_name;
 
 pub(crate) fn bench_field<F: Field>(c: &mut Criterion) {
@@ -171,6 +176,96 @@ pub(crate) fn bench_field<F: Field>(c: &mut Criterion) {
     );
 }
 
+fn bench_packed_field<P: PackedField>(c: &mut Criterion) {
+    c.bench_function(
+        &format!("packed-mul-throughput-<{}>", type_name::<P>()),
+        |b| {
+            b.iter_batched(
+                || vec![P::Scalar::rand_vec(P::WIDTH); 4],
+                |mut elems| {
+                    let mut elems = elems.iter_mut();
+                    let a = elems.next().unwrap();
+                    let b = elems.next().unwrap();
+                    let c = elems.next().unwrap();
+                    let d = elems.next().unwrap();
+
+                    let pa = P::from_slice_mut(a);
+                    let pb = P::from_slice_mut(b);
+                    let pc = P::from_slice_mut(c);
+                    let pd = P::from_slice_mut(d);
+
+                    for _ in 0..25 {
+                        pa.mul_assign(*pb);
+                        pb.mul_assign(*pc);
+                        pc.mul_assign(*pd);
+                        pd.mul_assign(*pa);
+                    }
+                },
+                BatchSize::SmallInput,
+            )
+        },
+    );
+
+    c.bench_function(
+        &format!("packed-add-throughput-<{}>", type_name::<P>()),
+        |b| {
+            b.iter_batched(
+                || vec![P::Scalar::rand_vec(P::WIDTH); 4],
+                |mut elems| {
+                    let mut elems = elems.iter_mut();
+                    let a = elems.next().unwrap();
+                    let b = elems.next().unwrap();
+                    let c = elems.next().unwrap();
+                    let d = elems.next().unwrap();
+
+                    let pa = P::from_slice_mut(a);
+                    let pb = P::from_slice_mut(b);
+                    let pc = P::from_slice_mut(c);
+                    let pd = P::from_slice_mut(d);
+
+                    for _ in 0..25 {
+                        pa.add_assign(*pb);
+                        pb.add_assign(*pc);
+                        pc.add_assign(*pd);
+                        pd.add_assign(*pa);
+                    }
+                },
+                BatchSize::SmallInput,
+            )
+        },
+    );
+
+    c.bench_function(&format!("packed-mul-latency<{}>", type_name::<P>()), |b| {
+        b.iter_batched(
+            || vec![P::Scalar::rand_vec(P::WIDTH); 1000],
+            |x| {
+                x.iter().fold(P::default(), |mut acc, x| {
+                    let x = P::from_slice(x.as_slice());
+                    acc.mul_assign(*x);
+
+                    acc
+                })
+            },
+            BatchSize::SmallInput,
+        )
+    });
+
+    c.bench_function(&format!("packed-add-latency<{}>", type_name::<P>()), |b| {
+        b.iter_batched(
+            || vec![P::Scalar::rand_vec(P::WIDTH); 1000],
+            |x| {
+                x.iter().fold(P::default(), |mut acc, x| {
+                    let x = P::from_slice(x.as_slice());
+                    acc.add_assign(*x);
+
+                    acc
+                })
+            },
+            BatchSize::SmallInput,
+        )
+    });
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
     bench_field::<GoldilocksField>(c);
     bench_field::<QuadraticExtension<GoldilocksField>>(c);
@@ -178,5 +273,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     bench_field::<QuinticExtension<GoldilocksField>>(c);
 }
 
-criterion_group!(benches, criterion_benchmark);
+fn simd_benchmark(c: &mut Criterion) {
+    bench_packed_field::<<GoldilocksField as Packable>::Packing>(c);
+}
+
+criterion_group!(benches, simd_benchmark, criterion_benchmark);
 criterion_main!(benches);
