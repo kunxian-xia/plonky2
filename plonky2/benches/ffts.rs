@@ -39,7 +39,7 @@ pub(crate) fn bench_ldes<F: Field>(c: &mut Criterion, rate_bits: usize) {
             let coeffs = PolynomialCoeffs::new(F::rand_vec(orig_size));
             b.iter(|| {
                 let padded_coeffs = coeffs.lde(rate_bits);
-                padded_coeffs.fft_with_options(Some(rate_bits), Some(&lde_size))
+                padded_coeffs.fft_with_options(Some(rate_bits), Some(&root_table))
             });
         });
     }
