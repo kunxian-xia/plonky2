@@ -6,6 +6,7 @@ use plonky2::field::polynomial::PolynomialCoeffs;
 use plonky2::field::types::Field;
 use plonky2_field::fft::{fft_dispatch, fft_root_table};
 use plonky2_field::packable::Packable;
+use plonky2_maybe_rayon::{MaybeParIterMut, ParallelIterator};
 use tynm::type_name;
 
 pub(crate) fn bench_ffts<F: Field>(c: &mut Criterion) {
@@ -22,6 +23,30 @@ pub(crate) fn bench_ffts<F: Field>(c: &mut Criterion) {
             let mut coeffs = PolynomialCoeffs::new(F::rand_vec(size));
             b.iter(|| fft_dispatch(&mut coeffs.coeffs, None, Some(&root_table)));
         });
+    }
+}
+
+pub(crate) fn bench_multiple_ffts<F: Field>(c: &mut Criterion) {
+    for size_log in [19, 20, 21, 22, 23, 24, 25, 26] {
+        let size = 1 << size_log;
+        let root_table = fft_root_table(size);
+        for num_polys in [20, 50, 100, 200] {
+            let mut group = c.benchmark_group(&format!(
+                "fft<{}, {}, {}>",
+                type_name::<F>(),
+                type_name::<<F as Packable>::Packing>(),
+                num_polys,
+            ));
+            group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+                let coeffs = PolynomialCoeffs::new(F::rand_vec(size));
+                let mut coeffs_vec = (0..num_polys).map(|_| coeffs.clone()).collect::<Vec<_>>();
+                b.iter(|| {
+                    coeffs_vec.par_iter_mut().for_each(|coeffs| {
+                        fft_dispatch(&mut coeffs.coeffs, None, Some(&root_table))
+                    })
+                });
+            });
+        }
     }
 }
 
@@ -47,6 +72,8 @@ pub(crate) fn bench_ldes<F: Field>(c: &mut Criterion, rate_bits: usize) {
 
 fn criterion_benchmark(c: &mut Criterion) {
     bench_ffts::<GoldilocksField>(c);
+    bench_multiple_ffts::<GoldilocksField>(c);
+
     bench_ldes::<GoldilocksField>(c, 1); // hermez
     bench_ldes::<GoldilocksField>(c, 2);
     bench_ldes::<GoldilocksField>(c, 3); // recursion and scroll
