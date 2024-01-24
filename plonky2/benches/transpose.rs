@@ -1,6 +1,6 @@
 mod allocator;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, BatchSize};
+use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Sample;
 use plonky2::util::transpose;
@@ -20,9 +20,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         for height in [5, 50, 100, 150, 200, 400, 600, 700] {
             group.bench_with_input(BenchmarkId::from_parameter(height), &height, |b, _| {
                 b.iter_batched(
-                    || {
-                        (0..height).map(|_| rand_vec.clone()).collect::<Vec<_>>()
-                    },
+                    || (0..height).map(|_| rand_vec.clone()).collect::<Vec<_>>(),
                     |matrix| transpose(&matrix),
                     BatchSize::SmallInput,
                 );
