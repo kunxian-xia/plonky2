@@ -9,8 +9,11 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 use anyhow::{ensure, Result};
 use itertools::Itertools;
 use plonky2_maybe_rayon::{
-    IndexedParallelIterator, MaybeIntoParIter, MaybeParIter, ParallelIterator,
+    MaybeIntoParIter, MaybeParIter
 };
+#[cfg(feature = "parallel")]
+use plonky2_maybe_rayon::{ParallelIterator, IndexedParallelIterator};
+
 use plonky2_util::log2_strict;
 use serde::{Deserialize, Serialize};
 
