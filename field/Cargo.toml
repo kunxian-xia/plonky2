@@ -16,7 +16,6 @@ serde = { version = "1.0", default-features = false, features = ["alloc", "deriv
 static_assertions = { version = "1.1.0", default-features = false }
 unroll = { version = "0.1.5", default-features = false }
 plonky2_maybe_rayon = { path = "../maybe_rayon", default-features = false }
-rayon = "1.6.0"
 
 [features]
 parallel = ["plonky2_maybe_rayon/parallel"]

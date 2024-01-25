@@ -12,7 +12,7 @@ edition = "2021"
 
 [features]
 default = ["parallel", "std", "timing"]
-parallel = ["plonky2/parallel", "plonky2_maybe_rayon/parallel", "plonky2/parallel"]
+parallel = ["plonky2/parallel", "plonky2_maybe_rayon/parallel"]
 std = ["anyhow/std", "plonky2/std"]
 timing = ["plonky2/timing"]
 
