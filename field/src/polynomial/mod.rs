@@ -8,6 +8,8 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use anyhow::{ensure, Result};
 use itertools::Itertools;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::IndexedParallelIterator;
 use plonky2_util::log2_strict;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -309,6 +311,13 @@ impl<F: Field> PolynomialCoeffs<F> {
     {
         PolynomialCoeffs::new(self.coeffs.par_iter().map(|&c| rhs.scalar_mul(c)).collect())
     }
+
+    pub fn eval_extension<const D: usize>(&self, z: F::Extension) -> F::Extension
+    where
+        F: Extendable<D>,
+    {
+        todo!()
+    }
 }
 
 impl<F: Field> PartialEq for PolynomialCoeffs<F> {
@@ -340,7 +349,7 @@ impl<F: Field> Add for &PolynomialCoeffs<F> {
         let len = max(self.len(), rhs.len());
         let a = self.padded(len).coeffs;
         let b = rhs.padded(len).coeffs;
-        let coeffs = a.into_iter().zip(b).map(|(x, y)| x + y).collect();
+        let coeffs = a.into_par_iter().zip(b.into_par_iter()).map(|(x, y)| x + y).collect();
         PolynomialCoeffs::new(coeffs)
     }
 }
