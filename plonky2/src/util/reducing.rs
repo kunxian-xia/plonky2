@@ -89,7 +89,10 @@ impl<F: Field> ReducingFactor<F> {
             .zip(polys)
             .map(|(base_power, poly)| {
                 self.count += 1;
-                poly.borrow().mul_extension(base_power)
+                let mul_ext_time = std::time::Instant::now();
+                let new_poly = poly.borrow().mul_extension(base_power);
+                log::debug!("mul extension of poly ({}) took {:?}", new_poly.len(), mul_ext_time.elapsed());
+                new_poly
             })
             .sum()
     }
