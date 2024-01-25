@@ -309,7 +309,13 @@ impl<F: Field> PolynomialCoeffs<F> {
     where
         F: Extendable<D>,
     {
-        PolynomialCoeffs::new(self.coeffs.par_iter().map(|&c| rhs.scalar_mul(c)).collect())
+        let poly = if cfg!(parallel) {
+            PolynomialCoeffs::new(self.coeffs.par_iter().map(|&c| rhs.scalar_mul(c)).collect())
+        } else {
+            PolynomialCoeffs::new(self.coeffs.iter().map(|&c| rhs.scalar_mul(c)).collect())
+        };
+
+        poly
     }
 
     pub fn eval_extension<const D: usize>(&self, z: F::Extension) -> F::Extension
@@ -349,7 +355,11 @@ impl<F: Field> Add for &PolynomialCoeffs<F> {
         let len = max(self.len(), rhs.len());
         let a = self.padded(len).coeffs;
         let b = rhs.padded(len).coeffs;
-        let coeffs = a.into_par_iter().zip(b.into_par_iter()).map(|(x, y)| x + y).collect();
+        let coeffs = if cfg!(parallel) {
+            a.into_par_iter().zip(b.into_par_iter()).map(|(x, y)| x + y).collect()
+        } else {
+            a.into_iter().zip(b.into_iter()).map(|(x, y)| x + y).collect()
+        };
         PolynomialCoeffs::new(coeffs)
     }
 }
