@@ -92,7 +92,7 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F>, const D: usize>
         // lde on the coset shift*H
         let lde_values = timed!(
             timing,
-            format!("FFT + blinding: {}", polynomials.len()).as_str(),
+            format!("FFT: {}, lde_len: {}", polynomials.len(), degree << rate_bits).as_str(),
             Self::lde_values(&polynomials, rate_bits, blinding, fft_root_table)
         );
 
