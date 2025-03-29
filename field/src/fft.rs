@@ -206,9 +206,8 @@ fn fft_classic_simd_radix<P: PackedField>(
     for lg_half_m in (s..lg_n).step_by(MAX_LG_RADIX) {
         let lg_half_m_lo = lg_half_m;
         let lg_half_m_hi = (lg_n - 1).min(lg_half_m + MAX_LG_RADIX - 1);
-        let lg_m_hi = lg_half_m_hi + 1;
-        let m_hi = 1 << lg_m_hi;
-        let packed_m_hi = m_hi >> lg_packed_width;
+
+        let packed_m_hi = 1 << (lg_half_m_hi + 1 - lg_packed_width);
 
         let lg_radix = lg_half_m_hi - lg_half_m_lo + 1;
         let radix = 1 << lg_radix;
@@ -229,10 +228,6 @@ fn fft_classic_simd_radix<P: PackedField>(
 
         for k in (0..packed_n).step_by(packed_m_hi) {
             let packed_m_lo = packed_m_hi >> lg_radix;
-            if lg_half_m_lo > 0 {
-                assert!(omega_tables[0].len() == packed_m_lo);
-            }
-            assert_eq!(packed_m_lo, 1 << (lg_half_m_lo - lg_packed_width));
             for j in 0..packed_m_lo {
                 // j, j+packed_m_lo, j+2*packed_m_lo, j+3*packed_m_lo,
                 //    ..., j+(radix-1)*packed_m_lo,
@@ -242,9 +237,14 @@ fn fft_classic_simd_radix<P: PackedField>(
                     *d = packed_values[k + j + i * packed_m_lo];
                 });
 
-                omega_js.iter_mut().enumerate().take(lg_radix).for_each(|(i, omega_j)| {
-                    *omega_j = omega_tables[i][j];
-                });
+                // load omega_js
+                omega_js
+                    .iter_mut()
+                    .enumerate()
+                    .take(lg_radix)
+                    .for_each(|(i, omega_j)| {
+                        *omega_j = omega_tables[i][j];
+                    });
 
                 for rnd in 0..lg_radix {
                     let omega_j = omega_js[rnd];
@@ -253,7 +253,7 @@ fn fft_classic_simd_radix<P: PackedField>(
                     let stride = half_stride * 2;
                     for i in (0..radix).step_by(stride) {
                         for h in 0..half_stride {
-                            let t = omega_j * omegas[(1<<rnd) + h] * data[i + half_stride + h];
+                            let t = omega_j * omegas[(1 << rnd) + h] * data[i + half_stride + h];
                             let u = data[i + h];
                             data[i + h] = u + t;
                             data[i + half_stride + h] = u - t;
