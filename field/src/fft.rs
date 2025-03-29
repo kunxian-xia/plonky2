@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::cmp::{max, min};
+use std::env::var;
 
 use plonky2_util::{log2_strict, reverse_index_bits_in_place};
 use unroll::unroll_for_loops;
@@ -156,6 +157,119 @@ fn fft_classic_simd<P: PackedField>(
     }
 }
 
+/// Generic FFT implementation that works with both scalar and packed inputs.
+#[unroll_for_loops]
+fn fft_classic_simd_radix<P: PackedField>(
+    values: &mut [P::Scalar],
+    r: usize,
+    lg_n: usize,
+    root_table: &FftRootTable<P::Scalar>,
+) {
+    let lg_packed_width = log2_strict(P::WIDTH); // 0 when P is a scalar.
+    let packed_values = P::pack_slice_mut(values);
+    let packed_n = packed_values.len();
+    debug_assert!(packed_n == 1 << (lg_n - lg_packed_width));
+
+    // Want the below for loop to unroll, hence the need for a literal.
+    // This loop will not run when P is a scalar.
+    assert!(lg_packed_width <= 4);
+    for lg_half_m in 0..4 {
+        if (r..min(lg_n, lg_packed_width)).contains(&lg_half_m) {
+            // Intuitively, we split values into m slices: subarr[0], ..., subarr[m - 1]. Each of
+            // those slices is split into two halves: subarr[j].left, subarr[j].right. We do
+            // (subarr[j].left[k], subarr[j].right[k])
+            //   := f(subarr[j].left[k], subarr[j].right[k], omega[k]),
+            // where f(u, v, omega) = (u + omega * v, u - omega * v).
+            let half_m = 1 << lg_half_m;
+
+            // Set omega to root_table[lg_half_m][0..half_m] but repeated.
+            let mut omega = P::default();
+            for (j, omega_j) in omega.as_slice_mut().iter_mut().enumerate() {
+                *omega_j = root_table[lg_half_m][j % half_m];
+            }
+
+            for k in (0..packed_n).step_by(2) {
+                // We have two vectors and want to do math on pairs of adjacent elements (or for
+                // lg_half_m > 0, pairs of adjacent blocks of elements). .interleave does the
+                // appropriate shuffling and is its own inverse.
+                let (u, v) = packed_values[k].interleave(packed_values[k + 1], half_m);
+                let t = omega * v;
+                (packed_values[k], packed_values[k + 1]) = (u + t).interleave(u - t, half_m);
+            }
+        }
+    }
+
+    // We've already done the first lg_packed_width (if they were required) iterations.
+    let s = max(r, lg_packed_width);
+
+    const MAX_LG_RADIX: usize = 7;
+    for lg_half_m in (s..lg_n).step_by(MAX_LG_RADIX) {
+        let lg_half_m_lo = lg_half_m;
+        let lg_half_m_hi = (lg_n - 1).min(lg_half_m + MAX_LG_RADIX - 1);
+
+        let packed_m_hi = 1 << (lg_half_m_hi + 1 - lg_packed_width);
+
+        let lg_radix = lg_half_m_hi - lg_half_m_lo + 1;
+        let radix = 1 << lg_radix;
+
+        let mut data = [P::ZEROS; 1 << MAX_LG_RADIX];
+        let mut omegas = [P::ZEROS; 1 << MAX_LG_RADIX];
+        let mut omega_js = [P::ZEROS; MAX_LG_RADIX.next_power_of_two()];
+
+        let omega_tables = (lg_half_m_lo..=lg_half_m_hi)
+            .map(|rnd| P::pack_slice(&root_table[rnd][..]))
+            .collect::<Vec<_>>();
+
+        (0..lg_radix).for_each(|rnd| {
+            let group_size = 1 << rnd;
+            let omega_table = P::pack_slice(&root_table[rnd][..]);
+            omegas[group_size..group_size * 2].copy_from_slice(&omega_table[..group_size]);
+        });
+
+        for k in (0..packed_n).step_by(packed_m_hi) {
+            let packed_m_lo = packed_m_hi >> lg_radix;
+            for j in 0..packed_m_lo {
+                // j, j+packed_m_lo, j+2*packed_m_lo, j+3*packed_m_lo,
+                //    ..., j+(radix-1)*packed_m_lo,
+
+                // read
+                data.iter_mut().enumerate().take(radix).for_each(|(i, d)| {
+                    *d = packed_values[k + j + i * packed_m_lo];
+                });
+
+                // load omega_js
+                omega_js
+                    .iter_mut()
+                    .enumerate()
+                    .take(lg_radix)
+                    .for_each(|(i, omega_j)| {
+                        *omega_j = omega_tables[i][j];
+                    });
+
+                for rnd in 0..lg_radix {
+                    let omega_j = omega_js[rnd];
+
+                    let half_stride = 1 << rnd;
+                    let stride = half_stride * 2;
+                    for i in (0..radix).step_by(stride) {
+                        for h in 0..half_stride {
+                            let t = omega_j * omegas[(1 << rnd) + h] * data[i + half_stride + h];
+                            let u = data[i + h];
+                            data[i + h] = u + t;
+                            data[i + half_stride + h] = u - t;
+                        }
+                    }
+                }
+
+                // write
+                data.iter().enumerate().take(radix).for_each(|(i, d)| {
+                    packed_values[k + j + i * packed_m_lo] = *d;
+                });
+            }
+        }
+    }
+}
+
 /// FFT implementation based on Section 32.3 of "Introduction to
 /// Algorithms" by Cormen et al.
 ///
@@ -197,7 +311,11 @@ pub(crate) fn fft_classic<F: Field>(values: &mut [F], r: usize, root_table: &Fft
         // to work. Do this tiny problem in scalar.
         fft_classic_simd::<F>(values, r, lg_n, root_table);
     } else {
-        fft_classic_simd::<<F as Packable>::Packing>(values, r, lg_n, root_table);
+        if var("RADIX").is_ok() {
+            fft_classic_simd_radix::<<F as Packable>::Packing>(values, r, lg_n, root_table);
+        } else {
+            fft_classic_simd::<<F as Packable>::Packing>(values, r, lg_n, root_table);
+        }
     }
 }
 
